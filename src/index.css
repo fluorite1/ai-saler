@@ -1,0 +1,28 @@
+@import 'highlight.js/styles/github.css';
+@import 'vue-virtual-scroller/dist/vue-virtual-scroller.css';
+
+/* App base */
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    'Noto Sans',
+    'Apple Color Emoji',
+    'Segoe UI Emoji',
+    'Segoe UI Symbol',
+    sans-serif;
+  background: linear-gradient(180deg, rgba(250, 250, 250, 1), rgba(245, 245, 245, 1));
+  color: rgba(0, 0, 0, 0.84);
+}
