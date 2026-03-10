@@ -62,13 +62,16 @@ function cancelCreate() {
     </div>
 
     <main class="sidebar__body">
-      <button
+      <div
         v-for="(s, idx) in props.sessions"
         :key="s.id"
-        type="button"
         class="row"
         :class="{ active: s.id === props.currentSessionId }"
+        role="button"
+        tabindex="0"
         @click="emit('select', idx)"
+        @keydown.enter.prevent="emit('select', idx)"
+        @keydown.space.prevent="emit('select', idx)"
       >
         <div class="row__text">
           <div class="row__title">{{ s.title }}</div>
@@ -84,7 +87,7 @@ function cancelCreate() {
         >
           🗑
         </button>
-      </button>
+      </div>
     </main>
   </aside>
 </template>

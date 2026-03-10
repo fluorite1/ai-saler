@@ -7,6 +7,9 @@ export type MetricsReporterOptions = {
 }
 
 export class MetricsReporter {
+  private static STORAGE_KEY = 'metrics_queue_v1'
+  private static MAX_CACHED = 50
+
   private reportUrl: string
   private batchSize: number
   private flushIntervalMs: number
@@ -22,6 +25,7 @@ export class MetricsReporter {
 
   start() {
     if (this.timer != null) return
+    this.loadQueue()
     this.timer = window.setInterval(() => {
       this.flush()
     }, this.flushIntervalMs)
@@ -35,6 +39,7 @@ export class MetricsReporter {
 
   push(event: MetricEvent) {
     this.queue.push(event)
+    this.saveQueue()
     if (this.queue.length >= this.batchSize) {
       this.flush()
     }
@@ -52,6 +57,28 @@ export class MetricsReporter {
     if (sendingQueue.length === 0) return
     // 失败则将 sendingQueue 放回 queue 头部，等待后续触发再上报
     this.queue.push(...sendingQueue)
+    this.saveQueue()
+  }
+
+  private saveQueue() {
+    try {
+      const payload = this.queue.slice(-MetricsReporter.MAX_CACHED)
+      localStorage.setItem(MetricsReporter.STORAGE_KEY, JSON.stringify(payload))
+    } catch {
+      // ignore storage errors
+    }
+  }
+
+  private loadQueue() {
+    try {
+      const raw = localStorage.getItem(MetricsReporter.STORAGE_KEY)
+      if (!raw) return
+      const parsed = JSON.parse(raw) as MetricEvent[]
+      if (!Array.isArray(parsed) || parsed.length === 0) return
+      this.queue = parsed.slice(-MetricsReporter.MAX_CACHED)
+    } catch {
+      // ignore parse errors
+    }
   }
 
   // 阈值触发的实时上报
@@ -71,6 +98,7 @@ export class MetricsReporter {
           this.onSendFailure(sendingQueue)
           return
         }
+        this.saveQueue()
       })
       .catch(() => {
         this.onSendFailure(sendingQueue)
@@ -89,6 +117,7 @@ export class MetricsReporter {
     if (navigator.sendBeacon) {
       const ok = navigator.sendBeacon(this.reportUrl, new Blob([body], { type: 'text/plain' }))
       if (ok) {
+        this.saveQueue()
         return
       }
     }
@@ -103,6 +132,7 @@ export class MetricsReporter {
           this.onSendFailure(sendingQueue)
           return
         }
+        this.saveQueue()
       })
       .catch(() => {
         this.onSendFailure(sendingQueue)
