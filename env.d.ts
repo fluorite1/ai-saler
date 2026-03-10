@@ -19,6 +19,10 @@ interface ImportMetaEnv {
   readonly VITE_OPENAI_MODEL: string
   readonly VITE_MAX_MESSAGES?: string
   readonly VITE_MAX_CHARS?: string
+  readonly VITE_METRICS_REPORT_URL?: string
+  readonly VITE_METRICS_BATCH_SIZE?: string
+  readonly VITE_METRICS_FLUSH_INTERVAL_MS?: string
+  readonly VITE_STREAM_GAP_TOPK?: string
 }
 
 interface ImportMeta {

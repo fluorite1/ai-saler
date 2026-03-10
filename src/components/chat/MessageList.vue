@@ -51,7 +51,11 @@ defineExpose({
           :size-dependencies="[item.content, item.status, item.error]"
           :data-index="index"
         >
-          <MessageItem :message="item" @retry="(id) => emit('retry', id)" />
+          <MessageItem
+            :message="item"
+            :is-latest="index === messages.length - 1"
+            @retry="(id) => emit('retry', id)"
+          />
         </DynamicScrollerItem>
       </template>
     </DynamicScroller>

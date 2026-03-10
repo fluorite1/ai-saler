@@ -3,10 +3,11 @@ import type { ContextItem } from '@/types/chat'
 import { useChatStore } from '@/stores/chat'
 import { trimContext } from '@/utils/context'
 import { loadAppConfig } from '@/config'
+import { STREAM_CONTINUE_PROMPT } from '@/prompts/streamContinuation'
 
 // 使用 OpenAI-compatible client
-import { OpenAICompatibleClient } from '@/services/openai-like/client'
 import type { ChatCompletionChunk, ChatCompletionsCreateParams } from '@/services/openai-like/types'
+import { InstrumentedOpenAICompatibleClient } from '@/monitoring/instrumentedClient'
 
 export function useChatStream() {
   const chat = useChatStore()
@@ -16,14 +17,14 @@ export function useChatStream() {
   let cancelledReqId: number | null = null
   let reqSeq = 0
 
-  // 保存每条 assistant 对应的一次请求上下文，用于重试（裁剪后的快照）
+  // 保存每条 assistant 对应的一次请求上下文，用于重试
   const contexts = new Map<string, { sessionId: string; messages: ContextItem[] }>()
 
   let inflightSessionId: string | null = null
 
   const { config, errors: configErrors } = loadAppConfig()
   // OpenAI-compatible 初始化
-  const openai = new OpenAICompatibleClient({
+  const openai = new InstrumentedOpenAICompatibleClient({
     apiKey: config.openaiCompat.apiKey,
     baseURL: config.openaiCompat.baseURL,
     timeoutMs: config.openaiCompat.timeoutMs,
@@ -58,6 +59,30 @@ export function useChatStream() {
     return err instanceof DOMException && err.name === 'AbortError'
   }
 
+  function getAssistantMessage(assistantId: string) {
+    return chat.currentMessages.find((m) => m.id === assistantId) ?? null
+  }
+
+  function buildContinuationContext(base: ContextItem[], assistantContent: string): ContextItem[] {
+    const merged: ContextItem[] = [
+      ...base,
+      { role: 'assistant', content: assistantContent },
+      { role: 'user', content: STREAM_CONTINUE_PROMPT },
+    ]
+    return trimContext(merged, {
+      maxMessages,
+      maxChars,
+      keepPairs: true,
+    })
+  }
+
+  function markInterrupted(assistantId: string) {
+    chat.updateMessage(assistantId, {
+      status: 'interrupted',
+      error: undefined,
+    })
+  }
+
   /**
    * Buffer streaming deltas and flush at most once per animation frame,
    * to reduce reactive updates and redundant re-renders.
@@ -67,10 +92,12 @@ export function useChatStream() {
     let rafId: number | null = null
     let closed = false
 
-    const raf =
-      window.requestAnimationFrame ??
-      ((cb: FrameRequestCallback) => window.setTimeout(() => cb(performance.now()), 16) as any)
-    const caf = window.cancelAnimationFrame ?? ((id: number) => window.clearTimeout(id))
+    const raf: (cb: FrameRequestCallback) => number = window.requestAnimationFrame
+      ? window.requestAnimationFrame.bind(window)
+      : (cb: FrameRequestCallback) => window.setTimeout(() => cb(performance.now()), 16)
+    const caf: (id: number) => void = window.cancelAnimationFrame
+      ? window.cancelAnimationFrame.bind(window)
+      : (id: number) => window.clearTimeout(id)
 
     function safeAppend(delta: string) {
       // session switch protection (same as runStream guard)
@@ -122,6 +149,7 @@ export function useChatStream() {
     currentController = new AbortController()
     inflightSessionId = sessionId
     const buffer = createRafDeltaBuffer(assistantId, sessionId)
+    let hasDelta = false
 
     try {
       const params: ChatCompletionsCreateParams = {
@@ -141,10 +169,10 @@ export function useChatStream() {
         if (chat.currentId !== inflightSessionId) return
 
         const delta = extractDelta(chunk)
-        if (delta) buffer.push(delta)
-
-        // 可选：usage（通常最后一个 chunk 才有）
-        // if (chunk.usage) console.log('usage:', chunk.usage)
+        if (delta) {
+          hasDelta = true
+          buffer.push(delta)
+        }
       }
 
       // 正常结束
@@ -158,14 +186,22 @@ export function useChatStream() {
       if (isAbortError(err) && cancelledReqId === reqId) {
         if (chat.currentId !== inflightSessionId) return
         buffer.close()
-        chat.updateMessage(assistantId, { status: 'done', error: undefined })
+        if (hasDelta) {
+          markInterrupted(assistantId)
+        } else {
+          chat.updateMessage(assistantId, { status: 'error', error: '已取消' })
+        }
         chat.flushStorage?.()
         return
       }
 
       if (chat.currentId !== inflightSessionId) return
       buffer.close()
-      chat.updateMessage(assistantId, { status: 'error', error: toErrorText(err) })
+      if (hasDelta) {
+        markInterrupted(assistantId)
+      } else {
+        chat.updateMessage(assistantId, { status: 'error', error: toErrorText(err) })
+      }
       chat.flushStorage?.()
     } finally {
       isLoading.value = false
@@ -217,7 +253,28 @@ export function useChatStream() {
     if (isLoading.value) stop()
 
     if (chat.currentId !== ctx.sessionId) {
-      chat.switchSession(ctx.sessionId)
+      const idx = chat.sessions.findIndex((s) => s.id === ctx.sessionId)
+      if (idx !== -1) chat.switchSession(idx)
+    }
+
+    const assistant = getAssistantMessage(assistantId)
+    if (!assistant) return
+
+    if (assistant.status === 'interrupted') {
+      const assistantContent = assistant.content
+      if (!assistantContent) {
+        chat.resetMessageForRetry(assistantId)
+        await runStream(assistantId, ctx.sessionId, ctx.messages)
+        return
+      }
+
+      chat.updateMessage(assistantId, {
+        status: 'streaming',
+        error: undefined,
+      })
+      const messages = buildContinuationContext(ctx.messages, assistantContent)
+      await runStream(assistantId, ctx.sessionId, messages)
+      return
     }
 
     chat.resetMessageForRetry(assistantId)

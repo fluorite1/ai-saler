@@ -14,7 +14,9 @@ function isAbortError(err: unknown) {
 }
 
 function getStatus(err: unknown): number | undefined {
-  return (err as any)?.status
+  if (typeof err !== 'object' || err == null) return undefined
+  const v = (err as { status?: unknown }).status
+  return typeof v === 'number' ? v : undefined
 }
 
 function shouldRetry(err: unknown) {
@@ -56,8 +58,6 @@ export class OpenAICompatibleClient {
     }
 
     // 用 retry 包住 “建立请求 + 拿到 response.body” 的过程
-    // 注意：真正的流式读取过程中如果中断/断流，是否重试很复杂（会导致重复输出）
-    // 工程上通常只重试“连接阶段”。这里就是这么做的：连接成功后就不再重试。
     const { res, controller, cleanup } = await withRetry(async () => this.openStream(params), {
       retries: this.retries,
       shouldRetry,
@@ -71,7 +71,7 @@ export class OpenAICompatibleClient {
         try {
           chunk = JSON.parse(data)
         } catch {
-          // 兼容极少数 provider 的非 JSON data 行
+          // 兼容 provider 的非 JSON data 行
           continue
         }
 
@@ -84,9 +84,9 @@ export class OpenAICompatibleClient {
 
   /**
    * 建立到 /chat/completions 的 SSE 连接（只负责拿到 Response + 可用 body）
-   * - 支持外部 signal
-   * - 支持 timeout
-   * - 对非 2xx 抛错并携带 status
+   * 支持外部 signal
+   * 支持 timeout
+   * 对非 2xx 抛错并携带 status
    */
   private async openStream(params: ChatCompletionsCreateParams): Promise<{
     res: Response
@@ -95,7 +95,7 @@ export class OpenAICompatibleClient {
   }> {
     const controller = new AbortController()
 
-    // 联动外部 signal（useChatStream 的 stop）
+    // 联动外部 signal
     const external = params.signal
     const abort = () => controller.abort()
     if (external) {
@@ -127,13 +127,13 @@ export class OpenAICompatibleClient {
 
       if (!res.ok) {
         const err = new Error(`HTTP ${res.status}`)
-        ;(err as any).status = res.status
+        ;(err as Error & { status?: number }).status = res.status
         throw err
       }
 
       if (!res.body) {
         const err = new Error('No response body(stream)')
-        ;(err as any).status = 0
+        ;(err as Error & { status?: number }).status = 0
         throw err
       }
 

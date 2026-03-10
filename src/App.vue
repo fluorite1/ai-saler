@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
-import ChatWindow from '@/components/window/chat/ChatWindow.vue'
-import SettingsPanel from '@/components/window/SettingsPanel.vue'
+import ChatWindow from '@/components/chat/ChatWindow.vue'
+import SettingsPanel from '@/components/SettingsPanel.vue'
 import { useChatStore } from '@/stores/chat'
 import { useChatStream } from '@/composables/useChatStream'
-import SessionSidebar from '@/components/sidebar/SessionSidebar.vue'
+import SessionSidebar from '@/components/SessionSidebar.vue'
 
 const chat = useChatStore()
 
@@ -41,9 +41,9 @@ function closeSettings() {
 }
 
 // 会话操作
-function handleSwitchSession(id: string) {
+function handleSwitchSession(index: number) {
   stop()
-  chat.switchSession(id)
+  chat.switchSession(index)
   closeSidebar()
 }
 function handleCreateSession(title: string) {
@@ -72,15 +72,13 @@ function handleDeleteSession(id: string) {
             @close="closeSidebar"
           />
         </div>
-
-        <!-- mobile drawer sidebar -->
         <div class="sidebarDrawer" :class="{ open: sidebarOpen }">
           <div class="sidebarDrawer__backdrop" @click="closeSidebar" />
           <div class="sidebarDrawer__panel">
             <SessionSidebar
               :sessions="chat.sessions"
               :current-session-id="chat.currentId"
-              @select="handleSwitchSession"
+            @select="handleSwitchSession"
               @create="handleCreateSession"
               @delete="handleDeleteSession"
               @close="closeSidebar"

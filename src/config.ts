@@ -10,6 +10,12 @@ export type AppConfig = {
     maxMessages: number
     maxChars: number
   }
+  monitoring: {
+    reportUrl: string
+    batchSize: number
+    flushIntervalMs: number
+    streamTopK: number
+  }
 }
 
 export type AppConfigLoadResult = {
@@ -69,11 +75,20 @@ export function loadAppConfig(): AppConfigLoadResult {
 
   const maxMessages = parseNumber(env.VITE_MAX_MESSAGES, 20, { min: 1, max: 200, integer: true })
   const maxChars = parseNumber(env.VITE_MAX_CHARS, 12000, { min: 1000, max: 200000, integer: true })
+  const reportUrl = isNonEmptyString(env.VITE_METRICS_REPORT_URL) ? env.VITE_METRICS_REPORT_URL.trim() : ''
+  const batchSize = parseNumber(env.VITE_METRICS_BATCH_SIZE, 20, { min: 1, max: 200, integer: true })
+  const flushIntervalMs = parseNumber(env.VITE_METRICS_FLUSH_INTERVAL_MS, 10000, {
+    min: 1000,
+    max: 60000,
+    integer: true,
+  })
+  const streamTopK = parseNumber(env.VITE_STREAM_GAP_TOPK, 5, { min: 1, max: 20, integer: true })
 
   return {
     config: {
       openaiCompat: { apiKey, baseURL, model, timeoutMs, retries },
       context: { maxMessages, maxChars },
+      monitoring: { reportUrl, batchSize, flushIntervalMs, streamTopK },
     },
     errors,
   }

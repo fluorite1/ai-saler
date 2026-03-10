@@ -1,5 +1,5 @@
 export type Role = 'system' | 'user' | 'assistant'
-export type MessageStatus = 'sending' | 'streaming' | 'done' | 'error'
+export type MessageStatus = 'sending' | 'streaming' | 'done' | 'error' | 'interrupted'
 
 export type ChatMessage = {
   id: string
@@ -17,9 +17,8 @@ export type ChatSession = {
   updatedAt: number
 }
 
-export type SessionsPersistedV1 = {
-  version: 1
-  currentId: string
+export type SessionsPersistedV2 = {
+  version: 2
   sessions: ChatSession[]
 }
 

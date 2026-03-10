@@ -1,61 +1,26 @@
-# ai-floatball
+# ai-saler
 
-This template should help get you started developing with Vue 3 in Vite.
+一个轻量的 LLM 聊天网页。
 
-## Run as an AI chat web app
+## 功能
 
-- Copy `env.example.txt` to `.env.local` (or `.env`) and fill in:
-  - `VITE_OPENAI_COMPAT_BASE_URL`
-  - `VITE_OPENAI_COMPAT_API_KEY`
-  - `VITE_OPENAI_MODEL`
+- Fetch + SSE + ReadableStream 流式解析
+- 会话/消息管理（Pinia + localStorage）
+- 上下文裁剪、停止与中断续写
+- 虚拟列表 + 懒加载，流式更新用 rAF 缓冲
+- Web Vitals + 流式指标采集与批量上报
 
-## Recommended IDE Setup
+## 快速开始
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Recommended Browser Setup
-
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
+1. 复制环境变量文件
+   - `env.example.txt` -> `.env.local`（或 `.env`）
+2. 填写必要变量
+   - `VITE_OPENAI_COMPAT_BASE_URL`
+   - `VITE_OPENAI_COMPAT_API_KEY`
+   - `VITE_OPENAI_MODEL`
+3. 安装依赖并启动
 
 ```sh
 npm install
-```
-
-### Compile and Hot-Reload for Development
-
-```sh
 npm run dev
-```
-
-### Type-Check, Compile and Minify for Production
-
-```sh
-npm run build
-```
-
-### Run Unit Tests with [Vitest](https://vitest.dev/)
-
-```sh
-npm run test:unit
-```
-
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-npm run lint
 ```

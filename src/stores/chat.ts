@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
-import type { ChatMessage, ChatSession, SessionsPersistedV1 } from '@/types/chat'
+import type { ChatMessage, ChatSession, SessionsPersistedV2 } from '@/types/chat'
 import { loadJSON, saveJSON, remove, STORAGE_KEYS } from '@/utils/storage'
 import { throttle } from '@/utils/throttle'
 
@@ -17,42 +17,42 @@ function createSessionMeta(title = 'New Chat'): ChatSession {
 export const useChatStore = defineStore('chat', () => {
   /**  state  */
   const s = createSessionMeta()
-  const currentId = ref<string>(s.id)
   const sessions = ref<ChatSession[]>([s])
   const currentMessages = ref<ChatMessage[]>([])
 
   /**  getters  */
+  const currentId = computed(() => sessions.value[0]?.id ?? '')
   const currentSession = computed<ChatSession>(() => {
-    return sessions.value.find((x) => x.id === currentId.value)!
+    return sessions.value[0]!
   })
 
   /** actions  */
   function loadSessions() {
-    const persisted = loadJSON<SessionsPersistedV1>(STORAGE_KEYS.sessions)
-    if (!persisted || persisted.version !== 1) return
-    if (!persisted.currentId || !persisted.sessions?.length) return
+    const persisted = loadJSON<SessionsPersistedV2 | { version: 1; currentId: string; sessions: ChatSession[] }>(
+      STORAGE_KEYS.sessions,
+    )
+    if (!persisted) return
+    if (!persisted.sessions?.length) return
 
-    const exists = persisted.sessions.some((x) => x.id === persisted.currentId)
-    if (!exists) return
 
-    currentId.value = persisted.currentId
     sessions.value = persisted.sessions
   }
   // 保留所有会话的元信息
   function persistSessions() {
-    const payload: SessionsPersistedV1 = {
-      version: 1,
-      currentId: currentId.value,
+    const payload: SessionsPersistedV2 = {
+      version: 2,
       sessions: sessions.value,
     }
     saveJSON(STORAGE_KEYS.sessions, payload)
   }
 
   function loadMessages(): ChatMessage[] {
+    if (!currentId.value) return []
     return loadJSON<ChatMessage[]>(STORAGE_KEYS.messages(currentId.value)) ?? []
   }
 
   function saveCurrentMessages() {
+    if (!currentId.value) return
     saveJSON(STORAGE_KEYS.messages(currentId.value), currentMessages.value)
   }
   //初始化sessions信息和当前session的message信息
@@ -61,14 +61,17 @@ export const useChatStore = defineStore('chat', () => {
     currentMessages.value = loadMessages()
   }
 
-  function switchSession(id: string) {
-    if (id === currentId.value) return
-    if (!sessions.value.some((x) => x.id === id)) return
+  function switchSession(index: number) {
+    if (index === 0) return
+    if (index < 0 || index >= sessions.value.length) return
 
     // 保存旧会话消息
     saveCurrentMessages()
-    // 切换 currentId
-    currentId.value = id
+    // 切换时将会话置顶（最近使用在上）
+    const [target] = sessions.value.splice(index, 1)
+    if (!target) return
+    target.updatedAt = now()
+    sessions.value.unshift(target)
     //加载新会话消息到内存
     currentMessages.value = loadMessages()
 
@@ -82,7 +85,6 @@ export const useChatStore = defineStore('chat', () => {
 
     const meta = createSessionMeta(title.trim() || 'New Chat')
     sessions.value.unshift(meta)
-    currentId.value = meta.id
     currentMessages.value = []
 
     persistSessions()
@@ -119,7 +121,6 @@ export const useChatStore = defineStore('chat', () => {
     if (currentId.value === id) {
       const first = sessions.value[0]
       if (!first) return
-      currentId.value = first.id
       currentMessages.value = loadMessages()
     }
   }

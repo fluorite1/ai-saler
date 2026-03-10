@@ -8,6 +8,7 @@ defineEmits<{
 
 const props = defineProps<{
   message: ChatMessage
+  isLatest?: boolean
 }>()
 </script>
 
@@ -17,11 +18,16 @@ const props = defineProps<{
       <template v-if="props.message.role === 'assistant'">
         <MarkdownView :content="props.message.content" />
 
-        <div v-if="props.message.status === 'error'" class="errorBar">
+        <div v-if="props.isLatest && props.message.status === 'error'" class="errorBar">
           <span class="errorText">生成失败：{{ props.message.error ?? 'unknown error' }}</span>
           <button class="retryBtn" type="button" @click="$emit('retry', props.message.id)">
             重试
           </button>
+        </div>
+
+        <div v-else-if="props.isLatest && props.message.status === 'interrupted'" class="continueBar">
+          <span class="continueText">已中断，可继续生成</span>
+          <button class="retryBtn" type="button" @click="$emit('retry', props.message.id)">继续</button>
         </div>
       </template>
 
@@ -105,5 +111,26 @@ const props = defineProps<{
   color: white;
   font-size: 12px;
   flex: 0 0 auto;
+}
+
+.continueBar {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.05);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.continueText {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
 }
 </style>

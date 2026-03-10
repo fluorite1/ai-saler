@@ -26,5 +26,6 @@ export function remove(key: string) {
 
 export const STORAGE_KEYS = {
   sessions: 'ai-floatball:sessions:v1',
+  // legacy localStorage messages key (migrated to IndexedDB)
   messages: (sessionId: string) => `ai-floatball:messages:v1:${sessionId}`,
 } as const

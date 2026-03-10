@@ -8,7 +8,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'select', id: string): void
+  (e: 'select', index: number): void
   (e: 'create', title: string): void
   (e: 'delete', id: string): void
   (e: 'close'): void
@@ -63,12 +63,12 @@ function cancelCreate() {
 
     <main class="sidebar__body">
       <button
-        v-for="s in props.sessions"
+        v-for="(s, idx) in props.sessions"
         :key="s.id"
         type="button"
         class="row"
         :class="{ active: s.id === props.currentSessionId }"
-        @click="emit('select', s.id)"
+        @click="emit('select', idx)"
       >
         <div class="row__text">
           <div class="row__title">{{ s.title }}</div>
