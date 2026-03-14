@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, defineAsyncComponent, watch, computed, nextTick, onMounted } from 'vue'
+import { ref, watch, computed, nextTick, onMounted, defineAsyncComponent } from 'vue'
 import ChatBox from './ChatBox.vue'
 import type { ChatMessage } from '@/types/chat'
 import { throttle } from '@/utils/throttle'
 
+// import MessageList from './MessageList.vue'
 const AsyncMessageList = defineAsyncComponent({
   loader: () => import('./MessageList.vue'),
 })
@@ -82,6 +83,7 @@ onMounted(() => tryFollowScroll())
     </header>
 
     <main class="chat__body">
+      <!-- <MessageList ref="messageListRef" :messages="messages" @retry="(id) => emit('retry', id)" /> -->
       <Suspense>
         <template #default>
           <AsyncMessageList
@@ -98,7 +100,11 @@ onMounted(() => tryFollowScroll())
     </main>
 
     <footer class="chat__footer">
-      <ChatBox :isLoading="props.isLoading ?? false" @send="(t) => emit('send', t)" @stop="emit('stop')" />
+      <ChatBox
+        :isLoading="props.isLoading ?? false"
+        @send="(t) => emit('send', t)"
+        @stop="emit('stop')"
+      />
     </footer>
   </div>
 </template>
