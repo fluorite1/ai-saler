@@ -82,7 +82,7 @@ export function useChatStream() {
     await chat.updateMessage(message, { persistSession })
   }
 
-  function createRafDeltaBuffer(message: ChatMessage, sessionId: string) {
+  function createRafDeltaBuffer(message: ChatMessage) {
     let pending = ''
     let rafId: number | null = null
     let closed = false
@@ -96,7 +96,6 @@ export function useChatStream() {
       : (id: number) => window.clearTimeout(id)
 
     function enqueue(delta: string) {
-      if (chat.currentId !== sessionId) return
       appendChain = appendChain.then(() =>
         updateMessage(
           message,
@@ -150,7 +149,7 @@ export function useChatStream() {
     currentController = new AbortController()
     isLoading.value = true
 
-    const buffer = createRafDeltaBuffer(message, sessionId)
+    const buffer = createRafDeltaBuffer(message)
     let hasDelta = false
 
     try {
@@ -176,7 +175,6 @@ export function useChatStream() {
         buffer.push(delta)
       }
 
-      if (chat.currentId !== sessionId) return
       await buffer.close()
       await updateMessage(message, (target) => {
         target.status = 'done'
