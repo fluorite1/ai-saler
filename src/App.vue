@@ -7,50 +7,55 @@ import { useChatStream } from '@/composables/useChatStream'
 import SessionSidebar from '@/components/SessionSidebar.vue'
 
 const chat = useChatStore()
+const { send, stop, retry, resume, isLoading } = useChatStream()
 
-// 消息发送
-const { send, stop, retry, isLoading } = useChatStream()
 function handleSend(text: string) {
-  send(text)
-}
-function handleRetry(id: string) {
-  retry(id)
+  void send(text)
 }
 
-// sidebar（移动端抽屉；桌面端固定）
+function handleRetry() {
+  void retry()
+}
+
+function handleResume() {
+  void resume()
+}
+
 const sidebarOpen = ref(true)
 onMounted(() => {
-  // 小屏默认关闭
   sidebarOpen.value = window.matchMedia?.('(min-width: 900px)')?.matches ?? true
 })
+
 function toggleSidebar() {
   sidebarOpen.value = !sidebarOpen.value
 }
+
 function closeSidebar() {
   sidebarOpen.value = false
 }
 
-// settings overlay
 const settingsOpen = ref(false)
 function openSettings() {
   stop()
   settingsOpen.value = true
 }
+
 function closeSettings() {
   settingsOpen.value = false
 }
 
-// 会话操作
 async function handleSwitchSession(index: number) {
   stop()
   await chat.switchSession(index)
   closeSidebar()
 }
+
 async function handleCreateSession(title: string) {
   stop()
   await chat.createSession(title)
   closeSidebar()
 }
+
 async function handleDeleteSession(id: string) {
   if (id === chat.currentId) stop()
   await chat.deleteSession(id)
@@ -61,7 +66,6 @@ async function handleDeleteSession(id: string) {
   <div class="app">
     <div class="shell">
       <div class="layout">
-        <!-- desktop fixed sidebar -->
         <div class="sidebar sidebar--desktop">
           <SessionSidebar
             :sessions="chat.sessions"
@@ -72,13 +76,14 @@ async function handleDeleteSession(id: string) {
             @close="closeSidebar"
           />
         </div>
+
         <div class="sidebarDrawer" :class="{ open: sidebarOpen }">
           <div class="sidebarDrawer__backdrop" @click="closeSidebar" />
           <div class="sidebarDrawer__panel">
             <SessionSidebar
               :sessions="chat.sessions"
               :current-session-id="chat.currentId"
-            @select="handleSwitchSession"
+              @select="handleSwitchSession"
               @create="handleCreateSession"
               @delete="handleDeleteSession"
               @close="closeSidebar"
@@ -93,6 +98,7 @@ async function handleDeleteSession(id: string) {
             :isLoading="isLoading"
             @send="handleSend"
             @retry="handleRetry"
+            @resume="handleResume"
             @stop="stop"
             @toggle-sidebar="toggleSidebar"
             @open-settings="openSettings"
@@ -142,7 +148,6 @@ async function handleDeleteSession(id: string) {
   height: 100%;
 }
 
-/* Mobile drawer */
 .sidebarDrawer {
   display: none;
 }
@@ -152,11 +157,13 @@ async function handleDeleteSession(id: string) {
   inset: 0;
   z-index: 10000;
 }
+
 .settingsOverlay__backdrop {
   position: absolute;
   inset: 0;
   background: rgba(0, 0, 0, 0.25);
 }
+
 .settingsOverlay__panel {
   position: absolute;
   inset: 0;
@@ -175,6 +182,7 @@ async function handleDeleteSession(id: string) {
     z-index: 9999;
     pointer-events: none;
   }
+
   .sidebarDrawer__backdrop {
     position: absolute;
     inset: 0;
@@ -182,6 +190,7 @@ async function handleDeleteSession(id: string) {
     opacity: 0;
     transition: opacity 180ms ease;
   }
+
   .sidebarDrawer__panel {
     position: absolute;
     left: 0;
@@ -196,9 +205,11 @@ async function handleDeleteSession(id: string) {
   .sidebarDrawer.open {
     pointer-events: auto;
   }
+
   .sidebarDrawer.open .sidebarDrawer__backdrop {
     opacity: 1;
   }
+
   .sidebarDrawer.open .sidebarDrawer__panel {
     transform: translateX(0);
   }

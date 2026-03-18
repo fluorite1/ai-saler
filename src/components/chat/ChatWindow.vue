@@ -19,7 +19,8 @@ const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'send', text: string): void
-  (e: 'retry', id: string): void
+  (e: 'retry'): void
+  (e: 'resume'): void
   (e: 'stop'): void
   (e: 'toggleSidebar'): void
   (e: 'openSettings'): void
@@ -83,13 +84,14 @@ onMounted(() => tryFollowScroll())
     </header>
 
     <main class="chat__body">
-      <!-- <MessageList ref="messageListRef" :messages="messages" @retry="(id) => emit('retry', id)" /> -->
+      <!-- <MessageList ref="messageListRef" :messages="messages" @retry="() => emit('retry')" @resume="() => emit('resume')" /> -->
       <Suspense>
         <template #default>
           <AsyncMessageList
             ref="messageListRef"
             :messages="messages"
-            @retry="(id) => emit('retry', id)"
+            @retry="() => emit('retry')"
+            @resume="() => emit('resume')"
           />
         </template>
 

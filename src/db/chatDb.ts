@@ -1,13 +1,9 @@
 import Dexie, { type EntityTable } from 'dexie'
 import type { ChatMessage, ChatSession } from '@/types/chat'
 
-export type MessageRecord = ChatMessage & {
-  sessionId: string
-}
-
 type ChatDB = Dexie & {
   sessions: EntityTable<ChatSession, 'id'>
-  messages: EntityTable<MessageRecord, 'id'>
+  messages: EntityTable<ChatMessage, 'id'>
 }
 
 export const chatDb = new Dexie('aiSalerDB') as ChatDB

@@ -3,7 +3,8 @@ import type { ChatMessage } from '@/types/chat'
 import MarkdownView from './MarkdownView.vue'
 
 defineEmits<{
-  (e: 'retry', id: string): void
+  (e: 'retry'): void
+  (e: 'resume'): void
 }>()
 
 const props = defineProps<{
@@ -19,15 +20,13 @@ const props = defineProps<{
         <MarkdownView :content="props.message.content" />
 
         <div v-if="props.isLatest && props.message.status === 'error'" class="errorBar">
-          <span class="errorText">生成失败：{{ props.message.error ?? 'unknown error' }}</span>
-          <button class="retryBtn" type="button" @click="$emit('retry', props.message.id)">
-            重试
-          </button>
+          <span class="errorText">Generation failed: {{ props.message.error ?? 'unknown error' }}</span>
+          <button class="retryBtn" type="button" @click="$emit('retry')">Retry</button>
         </div>
 
         <div v-else-if="props.isLatest && props.message.status === 'interrupted'" class="continueBar">
-          <span class="continueText">已中断，可继续生成</span>
-          <button class="retryBtn" type="button" @click="$emit('retry', props.message.id)">继续</button>
+          <span class="continueText">Interrupted, you can continue generation.</span>
+          <button class="retryBtn" type="button" @click="$emit('resume')">Continue</button>
         </div>
       </template>
 
@@ -56,9 +55,7 @@ const props = defineProps<{
   max-width: 85%;
   padding: 10px 12px;
   border-radius: 14px;
-
   min-width: 0;
-
   overflow-wrap: anywhere;
   word-break: break-word;
 }

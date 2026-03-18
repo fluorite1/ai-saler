@@ -1,8 +1,11 @@
-import Dexie from 'dexie'
 import { defineStore } from 'pinia'
 import { computed, ref, toRaw } from 'vue'
-import type { ChatMessage, ChatSession } from '@/types/chat'
-import { chatDb, type MessageRecord } from '@/db/chatDb'
+import { chatDb } from '@/db/chatDb'
+import type { ChatMessage, ChatSession, MessageStatus } from '@/types/chat'
+
+type UpdateMessageOptions = {
+  persistSession?: boolean
+}
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16)
@@ -10,80 +13,75 @@ function uid() {
 
 const now = () => Date.now()
 
-function createSessionMeta(title = 'New Chat'): ChatSession {
-  const t = now()
-  return { id: uid(), title, createdAt: t, updatedAt: t }
+function toPlain<T extends ChatMessage | ChatSession>(value: T): T {
+  return toRaw(value)
 }
 
-function toPlainSession(session: ChatSession): ChatSession {
-  const raw = toRaw(session)
+function createSession(title = 'New Chat'): ChatSession {
+  const timestamp = now()
   return {
-    id: raw.id,
-    title: raw.title,
-    createdAt: raw.createdAt,
-    updatedAt: raw.updatedAt,
+    id: uid(),
+    title,
+    createdAt: timestamp,
+    updatedAt: timestamp,
   }
 }
 
-function toPlainMessage(message: ChatMessage): ChatMessage {
-  const raw = toRaw(message)
+function createMessage(
+  sessionId: string,
+  role: ChatMessage['role'],
+  content: string,
+  status: MessageStatus,
+): ChatMessage {
   return {
-    id: raw.id,
-    role: raw.role,
-    content: raw.content,
-    createdAt: raw.createdAt,
-    status: raw.status,
-    error: raw.error,
+    id: uid(),
+    sessionId,
+    role,
+    content,
+    createdAt: now(),
+    status,
   }
 }
 
 export const useChatStore = defineStore('chat', () => {
-  const s = createSessionMeta()
-  const sessions = ref<ChatSession[]>([s])
+  const sessions = ref<ChatSession[]>([])
   const currentMessages = ref<ChatMessage[]>([])
 
   const currentId = computed(() => sessions.value[0]?.id ?? '')
   const currentSession = computed<ChatSession>(() => sessions.value[0]!)
 
-  async function persistSessions() {
-    await chatDb.sessions.bulkPut(sessions.value.map(toPlainSession))
+  async function persistSession(session: ChatSession) {
+    await chatDb.sessions.put(toPlain(session))
+  }
+
+  async function persistMessage(message: ChatMessage) {
+    await chatDb.messages.put(toPlain(message))
+  }
+
+  async function touchCurrentSession(persist = true) {
+    if (!currentId.value) return
+    currentSession.value.updatedAt = now()
+    if (persist) {
+      await persistSession(currentSession.value)
+    }
   }
 
   async function loadSessions() {
-    const rows = await chatDb.sessions.orderBy('updatedAt').reverse().toArray()
-    if (rows.length === 0) {
-      const first = createSessionMeta()
-      sessions.value = [first]
-      await chatDb.sessions.put(first)
+    const items = await chatDb.sessions.orderBy('updatedAt').reverse().toArray()
+    if (items.length > 0) {
+      sessions.value = items
       return
     }
-    sessions.value = rows
+
+    const first = createSession()
+    await persistSession(first)
+    sessions.value = [first]
   }
 
-  async function loadMessagesBySessionId(sessionId: string): Promise<ChatMessage[]> {
-    if (!sessionId) return []
-    const rows = await chatDb.messages
-      .where('[sessionId+createdAt]')
-      .between([sessionId, Dexie.minKey], [sessionId, Dexie.maxKey])
-      .toArray()
-    return rows.map(({ sessionId: _sessionId, ...message }) => toPlainMessage(message))
-  }
-
-  async function loadMessages() {
-    currentMessages.value = await loadMessagesBySessionId(currentId.value)
-  }
-
-  async function persistMessages(sessionId: string, messages: ChatMessage[]) {
-    const rows: MessageRecord[] = messages.map((m) => ({ ...toPlainMessage(m), sessionId }))
-    await chatDb.transaction('rw', chatDb.messages, async () => {
-      await chatDb.messages.where('sessionId').equals(sessionId).delete()
-      if (rows.length > 0) await chatDb.messages.bulkPut(rows)
-    })
-  }
-
-  async function saveCurrentMessages() {
-    if (!currentId.value) return
-    await persistMessages(currentId.value, currentMessages.value)
+  async function loadMessages(sessionId = currentId.value) {
+    currentMessages.value = sessionId
+      ? await chatDb.messages.where('sessionId').equals(sessionId).sortBy('createdAt')
+      : []
   }
 
   async function initFromDB() {
@@ -92,105 +90,79 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function switchSession(index: number) {
-    if (index === 0) return
-    if (index < 0 || index >= sessions.value.length) return
+    if (index <= 0 || index >= sessions.value.length) return
 
-    await flushStorage()
-    const [target] = sessions.value.splice(index, 1)
+    const target = sessions.value[index]
     if (!target) return
     target.updatedAt = now()
     sessions.value.unshift(target)
-    await persistSessions()
+    await persistSession(target)
     await loadMessages()
   }
 
-  async function createSession(title = 'New Chat') {
-    await flushStorage()
-
-    const meta = createSessionMeta(title.trim() || 'New Chat')
-    sessions.value.unshift(meta)
+  async function createSessionEntry(title = 'New Chat') {
+    const session = createSession(title.trim() || 'New Chat')
+    await persistSession(session)
+    sessions.value.unshift(session)
     currentMessages.value = []
-    await chatDb.sessions.put(meta)
-    return meta.id
+    return session.id
   }
 
   async function renameSession(id: string, title: string) {
-    const s = sessions.value.find((x) => x.id === id)
-    if (!s) return
-    s.title = title.trim() || s.title
-    s.updatedAt = now()
-    await persistSessions()
+    const session = sessions.value.find((item) => item.id === id)
+    if (!session) return
+    session.title = title.trim() || session.title
+    session.updatedAt = now()
+    await persistSession(session)
   }
 
   async function deleteSession(id: string) {
-    if (!sessions.value.some((x) => x.id === id)) return
+    if (!sessions.value.some((item) => item.id === id)) return
 
-    await flushStorage()
     await chatDb.transaction('rw', chatDb.sessions, chatDb.messages, async () => {
       await chatDb.sessions.delete(id)
       await chatDb.messages.where('sessionId').equals(id).delete()
     })
 
-    sessions.value = sessions.value.filter((x) => x.id !== id)
+    sessions.value = sessions.value.filter((item) => item.id !== id)
     if (sessions.value.length === 0) {
-      const meta = createSessionMeta()
-      sessions.value = [meta]
-      await chatDb.sessions.put(meta)
+      const session = createSession()
+      await persistSession(session)
+      sessions.value = [session]
     }
     await loadMessages()
   }
 
-  function addUserMessage(content: string) {
-    const msg: ChatMessage = {
-      id: uid(),
-      role: 'user',
-      content,
-      createdAt: now(),
-      status: 'done',
-    }
-    currentMessages.value.push(msg)
-    currentSession.value.updatedAt = now()
-    return msg
+  async function addMessage(role: ChatMessage['role'], content: string, status: MessageStatus) {
+    const message = createMessage(currentId.value, role, content, status)
+    await persistMessage(message)
+    currentMessages.value.push(message)
+    await touchCurrentSession()
+    return message
   }
 
-  function addAssistantMessage(initial = '') {
-    const msg: ChatMessage = {
-      id: uid(),
-      role: 'assistant',
-      content: initial,
-      createdAt: now(),
-      status: 'streaming',
-    }
-    currentMessages.value.push(msg)
-    currentSession.value.updatedAt = now()
-    return msg
+  async function addUserMessage(content: string) {
+    return addMessage('user', content, 'done')
   }
 
-  function updateMessage(id: string, patch: Partial<ChatMessage>) {
-    const target = currentMessages.value.find((m) => m.id === id)
-    if (target) Object.assign(target, patch)
-    currentSession.value.updatedAt = now()
+  async function addAssistantMessage(initial = '') {
+    return addMessage('assistant', initial, 'streaming')
   }
 
-  function appendToMessage(id: string, delta: string) {
-    const target = currentMessages.value.find((m) => m.id === id)
-    if (target) target.content += delta
-    currentSession.value.updatedAt = now()
-  }
-
-  function resetMessageForRetry(id: string) {
-    const target = currentMessages.value.find((m) => m.id === id)
-    if (!target) return
-    target.content = ''
-    target.status = 'streaming'
-    target.error = undefined
-    currentSession.value.updatedAt = now()
+  async function updateMessage(message: ChatMessage, opt?: UpdateMessageOptions) {
+    await persistMessage(message)
+    await touchCurrentSession(opt?.persistSession ?? true)
   }
 
   async function flushStorage() {
     if (!currentId.value) return
-    await persistSessions()
-    await saveCurrentMessages()
+    await persistSession(currentSession.value)
+  }
+
+  function getLastAssistantMessage() {
+    const last = currentMessages.value[currentMessages.value.length - 1]
+    if (!last) return null
+    return last.role === 'assistant' ? last : null
   }
 
   return {
@@ -198,20 +170,17 @@ export const useChatStore = defineStore('chat', () => {
     sessions,
     currentMessages,
     currentSession,
-    persistSessions,
     loadSessions,
-    saveCurrentMessages,
     loadMessages,
     initFromDB,
     switchSession,
-    createSession,
+    createSession: createSessionEntry,
     renameSession,
     deleteSession,
     addUserMessage,
     addAssistantMessage,
     updateMessage,
-    appendToMessage,
-    resetMessageForRetry,
     flushStorage,
+    getLastAssistantMessage,
   }
 })

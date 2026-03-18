@@ -1,8 +1,9 @@
-export type Role = 'system' | 'user' | 'assistant'
-export type MessageStatus = 'sending' | 'streaming' | 'done' | 'error' | 'interrupted'
+export type Role = 'user' | 'assistant'
+export type MessageStatus = 'streaming' | 'done' | 'error' | 'interrupted'
 
 export type ChatMessage = {
   id: string
+  sessionId: string
   role: Role
   content: string
   createdAt: number
@@ -15,11 +16,6 @@ export type ChatSession = {
   title: string
   createdAt: number
   updatedAt: number
-}
-
-export type SessionsPersistedV2 = {
-  version: 2
-  sessions: ChatSession[]
 }
 
 export type ContextItem = Pick<ChatMessage, 'role' | 'content'>

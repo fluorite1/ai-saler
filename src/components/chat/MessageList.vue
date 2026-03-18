@@ -5,7 +5,10 @@ import MessageItem from './MessageItem.vue'
 import { DynamicScroller, DynamicScrollerItem } from 'vue-virtual-scroller'
 
 const props = defineProps<{ messages: ChatMessage[] }>()
-const emit = defineEmits<{ (e: 'retry', id: string): void }>()
+const emit = defineEmits<{
+  (e: 'retry'): void
+  (e: 'resume'): void
+}>()
 
 type DynamicScrollerExpose = {
   $el?: HTMLElement
@@ -54,7 +57,8 @@ defineExpose({
           <MessageItem
             :message="item"
             :is-latest="index === messages.length - 1"
-            @retry="(id) => emit('retry', id)"
+            @retry="() => emit('retry')"
+            @resume="() => emit('resume')"
           />
         </DynamicScrollerItem>
       </template>
