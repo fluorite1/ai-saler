@@ -1,6 +1,6 @@
 import Dexie from 'dexie'
 import { defineStore } from 'pinia'
-import { computed, ref } from 'vue'
+import { computed, ref, toRaw } from 'vue'
 import type { ChatMessage, ChatSession } from '@/types/chat'
 import { chatDb, type MessageRecord } from '@/db/chatDb'
 
@@ -15,6 +15,28 @@ function createSessionMeta(title = 'New Chat'): ChatSession {
   return { id: uid(), title, createdAt: t, updatedAt: t }
 }
 
+function toPlainSession(session: ChatSession): ChatSession {
+  const raw = toRaw(session)
+  return {
+    id: raw.id,
+    title: raw.title,
+    createdAt: raw.createdAt,
+    updatedAt: raw.updatedAt,
+  }
+}
+
+function toPlainMessage(message: ChatMessage): ChatMessage {
+  const raw = toRaw(message)
+  return {
+    id: raw.id,
+    role: raw.role,
+    content: raw.content,
+    createdAt: raw.createdAt,
+    status: raw.status,
+    error: raw.error,
+  }
+}
+
 export const useChatStore = defineStore('chat', () => {
   const s = createSessionMeta()
   const sessions = ref<ChatSession[]>([s])
@@ -24,7 +46,7 @@ export const useChatStore = defineStore('chat', () => {
   const currentSession = computed<ChatSession>(() => sessions.value[0]!)
 
   async function persistSessions() {
-    await chatDb.sessions.bulkPut(sessions.value)
+    await chatDb.sessions.bulkPut(sessions.value.map(toPlainSession))
   }
 
   async function loadSessions() {
@@ -44,7 +66,7 @@ export const useChatStore = defineStore('chat', () => {
       .where('[sessionId+createdAt]')
       .between([sessionId, Dexie.minKey], [sessionId, Dexie.maxKey])
       .toArray()
-    return rows.map(({ sessionId: _sessionId, ...message }) => message)
+    return rows.map(({ sessionId: _sessionId, ...message }) => toPlainMessage(message))
   }
 
   async function loadMessages() {
@@ -52,7 +74,7 @@ export const useChatStore = defineStore('chat', () => {
   }
 
   async function persistMessages(sessionId: string, messages: ChatMessage[]) {
-    const rows: MessageRecord[] = messages.map((m) => ({ ...m, sessionId }))
+    const rows: MessageRecord[] = messages.map((m) => ({ ...toPlainMessage(m), sessionId }))
     await chatDb.transaction('rw', chatDb.messages, async () => {
       await chatDb.messages.where('sessionId').equals(sessionId).delete()
       if (rows.length > 0) await chatDb.messages.bulkPut(rows)
