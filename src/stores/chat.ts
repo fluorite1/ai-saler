@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia'
-import { computed, ref, toRaw } from 'vue'
+import { computed, reactive, ref, toRaw } from 'vue'
 import { chatDb } from '@/db/chatDb'
 import type { ChatMessage, ChatSession, MessageStatus } from '@/types/chat'
 
@@ -19,12 +19,12 @@ function toPlain<T extends ChatMessage | ChatSession>(value: T): T {
 
 function createSession(title = 'New Chat'): ChatSession {
   const timestamp = now()
-  return {
+  return reactive({
     id: uid(),
     title,
     createdAt: timestamp,
     updatedAt: timestamp,
-  }
+  })
 }
 
 function createMessage(
@@ -33,14 +33,14 @@ function createMessage(
   content: string,
   status: MessageStatus,
 ): ChatMessage {
-  return {
+  return reactive({
     id: uid(),
     sessionId,
     role,
     content,
     createdAt: now(),
     status,
-  }
+  })
 }
 
 export const useChatStore = defineStore('chat', () => {
@@ -92,7 +92,7 @@ export const useChatStore = defineStore('chat', () => {
   async function switchSession(index: number) {
     if (index <= 0 || index >= sessions.value.length) return
 
-    const target = sessions.value[index]
+    const [target] = sessions.value.splice(index, 1)
     if (!target) return
     target.updatedAt = now()
     sessions.value.unshift(target)
