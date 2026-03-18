@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import ChatWindow from '@/components/chat/ChatWindow.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
 import { useChatStore } from '@/stores/chat'
@@ -10,33 +10,19 @@ const chat = useChatStore()
 const { send, stop, retry, resume, isLoading } = useChatStream()
 
 function handleSend(text: string) {
-  void send(text)
+  send(text)
 }
 
 function handleRetry() {
-  void retry()
+  retry()
 }
 
 function handleResume() {
-  void resume()
-}
-
-const sidebarOpen = ref(true)
-onMounted(() => {
-  sidebarOpen.value = window.matchMedia?.('(min-width: 900px)')?.matches ?? true
-})
-
-function toggleSidebar() {
-  sidebarOpen.value = !sidebarOpen.value
-}
-
-function closeSidebar() {
-  sidebarOpen.value = false
+  resume()
 }
 
 const settingsOpen = ref(false)
 function openSettings() {
-  stop()
   settingsOpen.value = true
 }
 
@@ -47,13 +33,11 @@ function closeSettings() {
 async function handleSwitchSession(index: number) {
   stop()
   await chat.switchSession(index)
-  closeSidebar()
 }
 
 async function handleCreateSession(title: string) {
   stop()
   await chat.createSession(title)
-  closeSidebar()
 }
 
 async function handleDeleteSession(id: string) {
@@ -66,33 +50,19 @@ async function handleDeleteSession(id: string) {
   <div class="app">
     <div class="shell">
       <div class="layout">
-        <div class="sidebar sidebar--desktop">
+        <div class="sidebar">
           <SessionSidebar
             :sessions="chat.sessions"
             :current-session-id="chat.currentId"
             @select="handleSwitchSession"
             @create="handleCreateSession"
             @delete="handleDeleteSession"
-            @close="closeSidebar"
           />
-        </div>
-
-        <div class="sidebarDrawer" :class="{ open: sidebarOpen }">
-          <div class="sidebarDrawer__backdrop" @click="closeSidebar" />
-          <div class="sidebarDrawer__panel">
-            <SessionSidebar
-              :sessions="chat.sessions"
-              :current-session-id="chat.currentId"
-              @select="handleSwitchSession"
-              @create="handleCreateSession"
-              @delete="handleDeleteSession"
-              @close="closeSidebar"
-            />
-          </div>
         </div>
 
         <div class="main">
           <ChatWindow
+            :sessionId="chat.currentId"
             :messages="chat.currentMessages"
             :sessionName="chat.currentSession.title"
             :isLoading="isLoading"
@@ -100,7 +70,6 @@ async function handleDeleteSession(id: string) {
             @retry="handleRetry"
             @resume="handleResume"
             @stop="stop"
-            @toggle-sidebar="toggleSidebar"
             @open-settings="openSettings"
           />
         </div>
@@ -125,11 +94,13 @@ async function handleDeleteSession(id: string) {
 }
 
 .shell {
+  position: relative;
   height: 100vh;
   width: min(980px, 100vw);
   background: rgba(255, 255, 255, 0.96);
   border-left: 1px solid rgba(0, 0, 0, 0.06);
   border-right: 1px solid rgba(0, 0, 0, 0.06);
+  overflow: hidden;
 }
 
 .layout {
@@ -148,12 +119,8 @@ async function handleDeleteSession(id: string) {
   height: 100%;
 }
 
-.sidebarDrawer {
-  display: none;
-}
-
 .settingsOverlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 10000;
 }
@@ -168,50 +135,5 @@ async function handleDeleteSession(id: string) {
   position: absolute;
   inset: 0;
   background: rgba(255, 255, 255, 0.98);
-}
-
-@media (max-width: 899px) {
-  .sidebar--desktop {
-    display: none;
-  }
-
-  .sidebarDrawer {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-    pointer-events: none;
-  }
-
-  .sidebarDrawer__backdrop {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.25);
-    opacity: 0;
-    transition: opacity 180ms ease;
-  }
-
-  .sidebarDrawer__panel {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: min(86vw, 320px);
-    transform: translateX(-100%);
-    transition: transform 200ms ease;
-    background: rgba(250, 250, 250, 0.98);
-  }
-
-  .sidebarDrawer.open {
-    pointer-events: auto;
-  }
-
-  .sidebarDrawer.open .sidebarDrawer__backdrop {
-    opacity: 1;
-  }
-
-  .sidebarDrawer.open .sidebarDrawer__panel {
-    transform: translateX(0);
-  }
 }
 </style>

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, computed, nextTick, onMounted, defineAsyncComponent } from 'vue'
+import { computed, ref, watch, nextTick, onMounted, defineAsyncComponent } from 'vue'
 import ChatBox from './ChatBox.vue'
 import type { ChatMessage } from '@/types/chat'
-import { throttle } from '@/utils/throttle'
 
 // import MessageList from './MessageList.vue'
 const AsyncMessageList = defineAsyncComponent({
@@ -10,6 +9,7 @@ const AsyncMessageList = defineAsyncComponent({
 })
 
 type Props = {
+  sessionId: string
   messages: ChatMessage[]
   sessionName: string
   isLoading?: boolean
@@ -22,7 +22,6 @@ const emit = defineEmits<{
   (e: 'retry'): void
   (e: 'resume'): void
   (e: 'stop'): void
-  (e: 'toggleSidebar'): void
   (e: 'openSettings'): void
 }>()
 
@@ -32,46 +31,66 @@ type MessageListExpose = {
   scrollToBottom: () => Promise<void>
 }
 const messageListRef = ref<MessageListExpose | null>(null)
+let pendingScroll = Promise.resolve()
+
+function queueScroll(task: () => Promise<void>) {
+  pendingScroll = pendingScroll
+    .then(task)
+    .catch((err) => {
+      console.error('[ChatWindow scroll]', err)
+    })
+}
 
 async function scrollToBottom() {
   await nextTick()
   await messageListRef.value?.scrollToBottom()
 }
 
-const tryFollowScroll = throttle(async () => {
-  const isNear = messageListRef.value?.isNearBottom(200) ?? true
-  if (isNear) {
-    await scrollToBottom()
-  }
-}, 200)
-const streamKey = computed(() => {
+function scheduleScroll(force = false) {
+  queueScroll(async () => {
+    await nextTick()
+    if (force || (messageListRef.value?.isNearBottom(200) ?? true)) {
+      await scrollToBottom()
+    }
+  })
+}
+
+const lastMessageKey = computed(() => {
   const last = props.messages[props.messages.length - 1]
-  if (!last) return ''
-  // 访问 content.length 会追踪 content 属性的变化
-  // 即使 messages 数组引用不变，只要 last.content 变化，computed 会重新计算
-  return `${last.id}:${last.content.length}`
+  return `${last?.id ?? ''}:${last?.content.length ?? 0}:${last?.status ?? ''}`
 })
+
 watch(
-  streamKey,
-  () => {
-    // 只有最后一条消息是流式状态时才跟随滚动
-    // const last = props.messages[props.messages.length - 1]
-    // if (last?.status === 'streaming') {
-    // }
-    tryFollowScroll()
+  [() => props.sessionId, () => props.messages.length],
+  ([sessionId, messageCount], [prevSessionId, prevMessageCount]) => {
+    if (sessionId !== prevSessionId || messageCount > prevMessageCount) {
+      scheduleScroll(true)
+    }
   },
   { flush: 'post' },
 )
-onMounted(() => tryFollowScroll())
+
+watch(
+  lastMessageKey,
+  (next, prev) => {
+    if (!prev) return
+    const nextId = next.split(':', 1)[0]
+    const prevId = prev.split(':', 1)[0]
+    if (nextId && nextId === prevId) {
+      scheduleScroll()
+    }
+  },
+  { flush: 'post' },
+)
+
+onMounted(() => {
+  scheduleScroll(true)
+})
 </script>
 
 <template>
   <div class="chat">
     <header class="chat__header">
-      <div class="chat__headerLeft">
-        <button class="iconBtn" type="button" @click="emit('toggleSidebar')">≡</button>
-      </div>
-
       <div class="chat__headerCenter">
         <div class="chat__title">
           {{ sessionName }}
@@ -122,26 +141,21 @@ onMounted(() => tryFollowScroll())
   height: 44px;
   padding: 0 10px;
   display: grid;
-  grid-template-columns: 44px 1fr 88px; /* 左按钮 / 标题 / 右按钮 */
+  grid-template-columns: 1fr 88px;
   align-items: center;
 
   /* header 和 main 的分隔线 */
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
-.chat__headerLeft,
 .chat__headerCenter,
 .chat__headerRight {
   display: flex;
   align-items: center;
 }
 
-.chat__headerLeft {
-  justify-content: flex-start;
-}
-
 .chat__headerCenter {
-  justify-content: center;
+  justify-content: flex-start;
   min-width: 0;
 }
 
@@ -163,7 +177,7 @@ onMounted(() => tryFollowScroll())
   flex: 1;
   min-height: 0; /* 让 overflow 生效，避免把 footer 顶出去 */
   padding: 12px;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .chat__footer {

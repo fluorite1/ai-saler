@@ -11,7 +11,6 @@ const emit = defineEmits<{
   (e: 'select', index: number): void
   (e: 'create', title: string): void
   (e: 'delete', id: string): void
-  (e: 'close'): void
 }>()
 
 const creating = ref(false)
@@ -44,7 +43,6 @@ function cancelCreate() {
 
       <div class="sidebar__actions">
         <button class="iconBtn" type="button" title="新建会话" @click="startCreate">＋</button>
-        <button class="iconBtn sidebar__close" type="button" title="关闭" @click="emit('close')">✕</button>
       </div>
     </header>
 
@@ -210,12 +208,4 @@ function cancelCreate() {
   opacity: 0.35;
   cursor: not-allowed;
 }
-
-/* Desktop: always show sidebar close button? hide it; App controls layout */
-@media (min-width: 900px) {
-  .sidebar__close {
-    display: none;
-  }
-}
 </style>
-

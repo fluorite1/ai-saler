@@ -16,8 +16,16 @@ type DynamicScrollerExpose = {
 }
 const scrollerRef = ref<DynamicScrollerExpose | null>(null)
 
+function getScrollerElement() {
+  return scrollerRef.value?.$el ?? null
+}
+
+function waitForPaint() {
+  return new Promise<void>((resolve) => window.requestAnimationFrame(() => resolve()))
+}
+
 function isNearBottom(thresholdPx = 160) {
-  const el = scrollerRef.value?.$el
+  const el = getScrollerElement()
   if (!el) return true
   const distance = el.scrollHeight - (el.scrollTop + el.clientHeight)
   return distance <= thresholdPx
@@ -26,9 +34,16 @@ function isNearBottom(thresholdPx = 160) {
 async function scrollToBottom() {
   if (props.messages.length === 0) return
   await nextTick()
-  const scroller = scrollerRef.value
-  if (scroller?.scrollToItem) {
-    scroller.scrollToItem(props.messages.length - 1)
+  await waitForPaint()
+
+  scrollerRef.value?.scrollToItem?.(props.messages.length - 1)
+
+  await nextTick()
+  await waitForPaint()
+
+  const el = getScrollerElement()
+  if (el) {
+    el.scrollTop = el.scrollHeight
   }
 }
 
