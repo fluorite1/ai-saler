@@ -41,19 +41,19 @@ function closeSettings() {
 }
 
 // 会话操作
-function handleSwitchSession(index: number) {
+async function handleSwitchSession(index: number) {
   stop()
-  chat.switchSession(index)
+  await chat.switchSession(index)
   closeSidebar()
 }
-function handleCreateSession(title: string) {
+async function handleCreateSession(title: string) {
   stop()
-  chat.createSession(title)
+  await chat.createSession(title)
   closeSidebar()
 }
-function handleDeleteSession(id: string) {
+async function handleDeleteSession(id: string) {
   if (id === chat.currentId) stop()
-  chat.deleteSession(id)
+  await chat.deleteSession(id)
 }
 </script>
 
@@ -204,4 +204,3 @@ function handleDeleteSession(id: string) {
   }
 }
 </style>
-

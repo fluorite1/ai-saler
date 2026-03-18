@@ -179,7 +179,7 @@ export function useChatStream() {
       if (chat.currentId !== inflightSessionId) return
       buffer.close()
       chat.updateMessage(assistantId, { status: 'done', error: undefined })
-      chat.flushStorage?.()
+      await chat.flushStorage()
       contexts.delete(assistantId)
     } catch (err) {
       // 用户 stop: AbortError 视为“停止生成”，不标 error，保留 retry 上下文
@@ -191,7 +191,7 @@ export function useChatStream() {
         } else {
           chat.updateMessage(assistantId, { status: 'error', error: '已取消' })
         }
-        chat.flushStorage?.()
+        await chat.flushStorage()
         return
       }
 
@@ -202,7 +202,7 @@ export function useChatStream() {
       } else {
         chat.updateMessage(assistantId, { status: 'error', error: toErrorText(err) })
       }
-      chat.flushStorage?.()
+      await chat.flushStorage()
     } finally {
       isLoading.value = false
       currentController = null
@@ -228,7 +228,7 @@ export function useChatStream() {
           configErrors.map((e) => `- ${e}`).join('\n') +
           '\n\n请按 env.example.txt 创建 .env.local 并填写相关 VITE_* 变量。',
       })
-      chat.flushStorage?.()
+      await chat.flushStorage()
       return
     }
 
@@ -254,7 +254,7 @@ export function useChatStream() {
 
     if (chat.currentId !== ctx.sessionId) {
       const idx = chat.sessions.findIndex((s) => s.id === ctx.sessionId)
-      if (idx !== -1) chat.switchSession(idx)
+      if (idx !== -1) await chat.switchSession(idx)
     }
 
     const assistant = getAssistantMessage(assistantId)
